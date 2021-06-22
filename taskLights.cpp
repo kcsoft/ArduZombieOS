@@ -44,7 +44,7 @@ void TaskLights(void *pvParameters) {
     while (light < LIGHTS) {
       if (lightOnCounter[light] > 0) {
         if (--lightOnCounter[light] == 0) { // turn off light
-          digitalWrite(lightIOPins[settings.lightPin[light]], LOW);
+          setLight(light, 0);
           xQueueSend(mqttQueue, &light, 0);
         }
       }

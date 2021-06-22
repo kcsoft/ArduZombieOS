@@ -1,7 +1,7 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
-// #define DEBUG               1
+#define DEBUG               1
 
 #define DEFAULT_ID          '1'
 #define DEFAULT_HOSTNAME    "ArduZombie"

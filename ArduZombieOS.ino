@@ -5,6 +5,7 @@
 #include "taskSettings.h"
 #include "taskDHCP.h"
 #include "taskMQTT.h"
+#include "taskTCPServer.h"
 #include "taskButtons.h"
 #include "taskBlink.h"
 
@@ -17,6 +18,7 @@ void setup() {
   xTaskCreate(TaskSettings, "Settings", 256, NULL, 0, NULL);
   xTaskCreate(TaskDHCP, "DHCP", 256, NULL, 0, NULL);
   xTaskCreate(TaskMQTT, "MQTT", 256, NULL, 0, NULL);
+  xTaskCreate(TaskTCPServer, "TCPServer", 512, NULL, 0, NULL);
   xTaskCreate(TaskLights, "Lights", 256, NULL, 0, NULL);
   // vTaskStartScheduler();
 

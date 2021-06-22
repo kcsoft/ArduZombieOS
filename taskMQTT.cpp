@@ -1,4 +1,3 @@
-#include <Arduino_FreeRTOS.h>
 #include <string.h>
 
 #include "config.h"
@@ -68,6 +67,8 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
   Serial.println(mqttLightTopic);
   Serial.println("MQTT: Can connect now!!");
 #endif
+
+  xSemaphoreGive(ipSemaphore);
 
   while (1) {
     if (!mqttClient.connected()) {
@@ -206,7 +207,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   // reset using watchdog
   if (strcmp(mqttResetTopic, topic) == 0) {
-    wdt_interrupt_reset_enable(portUSE_WDTO);
+    // wdt_interrupt_reset_enable(portUSE_WDTO);
     wdt_disable();
     wdt_enable(WDTO_2S);
     while (1) continue;
