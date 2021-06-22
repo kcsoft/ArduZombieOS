@@ -25,13 +25,25 @@ struct BlinkMode {
   uint8_t blinkStart2;
   uint8_t blinkMaxCounter;
 };
-
+ // blinkmode 0=off, 4=max blink light
 BlinkMode blinkModes[] = {
   {
-    blinkMasks: {0, 1, 3, 3, 7, 15, 31, 15, 7, 3, 3, 1},
+    blinkMasks: {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     blinkStart1: 0,
-    blinkStart2: 6, // half of port is dephased by 0-31 diff in masks
-    blinkMaxCounter: BLINK_MASKS_SIZE + 20
+    blinkStart2: 1,
+    blinkMaxCounter: BLINK_MASKS_SIZE + 28
+  },
+  {
+    blinkMasks: {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    blinkStart1: 0,
+    blinkStart2: 1,
+    blinkMaxCounter: BLINK_MASKS_SIZE + 28
+  },
+  {
+    blinkMasks: {0, 1, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0},
+    blinkStart1: 0,
+    blinkStart2: 2,
+    blinkMaxCounter: BLINK_MASKS_SIZE + 18
   },
   {
     blinkMasks: {0, 1, 3, 3, 7, 3, 3, 1, 0, 0, 0, 0},
@@ -40,16 +52,19 @@ BlinkMode blinkModes[] = {
     blinkMaxCounter: BLINK_MASKS_SIZE + 18
   },
   {
-    blinkMasks: {0, 1, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0},
+    blinkMasks: {0, 1, 3, 3, 7, 15, 31, 15, 7, 3, 3, 1},
     blinkStart1: 0,
-    blinkStart2: 2,
-    blinkMaxCounter: BLINK_MASKS_SIZE + 18
-  }
+    blinkStart2: 6, // half of port is dephased by 0-31 diff in masks
+    blinkMaxCounter: BLINK_MASKS_SIZE + 20
+  },
 };
 
 BlinkMode *blinkMode;
 
 void setBlinkMode(uint8_t mode) {
+  if (mode >= (sizeof(blinkModes) / sizeof(blinkModes[0]))) {
+    return;
+  }
   noInterrupts();
   blinkMode = &blinkModes[mode];
   blinkMaskIndex1 = blinkMode->blinkStart1;

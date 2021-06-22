@@ -174,7 +174,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // hHOSTNAME - set hostname
   // l01 - lF1 - set lightPin
   // ? - reset to default settings
-  // b0, b1 - set blink mode [no eeprom save]
+  // b0 .. b4 - set blink mode [no eeprom save]
   if (strcmp(mqttSettingTopic, topic) == 0) {
     if (payload[0] == 'b') { // set blink mode
       setBlinkMode(payload[1] - '0');

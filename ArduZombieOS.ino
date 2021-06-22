@@ -29,7 +29,7 @@ void setup() {
   TCCR1B |= (1 << WGM12); // CTC mode
   TCCR1B |= (1 << CS11); // 8 prescaler
   TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
-  setBlinkMode(0);
+  setBlinkMode(4);
 
   interrupts();
 }
