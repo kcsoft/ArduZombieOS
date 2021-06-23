@@ -3,48 +3,43 @@
 #include "src/Ethernet/Ethernet.h"
 #include "config.h"
 #include "taskTCPServer.h"
-#include "taskDHCP.h"
-#include "taskSettings.h"
+#include "taskManager.h"
 
 EthernetServer server = EthernetServer(23);
 EthernetClient tcpClient;
 char recvChar;
+uint32_t notificationTcpServer;
+boolean alreadyConnected = false;
 
 void TaskTCPServer(void *pvParameters) {
   (void) pvParameters;
 
-#ifdef DEBUG
-  Serial.println("TCPServer: Wait DHCP");
-#endif
-
-  if (xSemaphoreTake(ipSemaphore, portMAX_DELAY) != pdPASS) {
-    vTaskSuspend(NULL);
+  DEBUG_PRINTLN("TCPServer: Wait DHCP");
+  notificationTcpServer = 0;
+  while ((notificationTcpServer & NOTIFY_IP_READY) != NOTIFY_IP_READY) {
+    notificationTcpServer = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
-
-#ifdef DEBUG
-  Serial.println("TCPServer: Can listen now!!");
-#endif
+  DEBUG_PRINTLN("TCPServer: Can listen now!!");
 
   server.begin();
-
-  xSemaphoreGive(ipSemaphore);
 
   while (1) {
     tcpClient = server.available();
     if (tcpClient) {
-      Serial.print('C');
-      while (tcpClient.connected()) {
-        if (tcpClient.available()) {
-          recvChar = tcpClient.read();
-          server.write(recvChar);
-#ifdef DEBUG
-          Serial.print(recvChar);
-#endif
-        }
-        // vTaskDelay( portTICK_PERIOD_MS );
+      if (!alreadyConnected) {
+        alreadyConnected = true;
+        tcpClient.flush();
+        DEBUG_PRINTLN("New client");
       }
+      taskENTER_CRITICAL();
+      if (tcpClient.available() > 0) {
+        recvChar = tcpClient.read();
+        DEBUG_PRINT(recvChar);
+      }
+      taskEXIT_CRITICAL();
+      vTaskDelay( 1 );
     }
-    // vTaskDelay( portTICK_PERIOD_MS );
+    vTaskDelay( 1 );
   }
 }
 

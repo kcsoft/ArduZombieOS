@@ -1,7 +1,10 @@
 #include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
 
 #include "config.h"
 #include "taskBlink.h"
+#include "taskSettings.h"
+#include "taskManager.h"
 
 #define BLINK_MASKS_SIZE	12
 
@@ -62,22 +65,38 @@ BlinkMode blinkModes[] = {
 BlinkMode *blinkMode;
 
 void setBlinkMode(uint8_t mode) {
+  uint8_t i;
+
   if (mode >= (sizeof(blinkModes) / sizeof(blinkModes[0]))) {
     return;
   }
   noInterrupts();
+  // init
+  i = 0;
+  while (i < BUTTONS / 8) {
+    blinkEnabled[i] = settings.blinkEnabled[i];
+    i++;
+  }
+
   blinkMode = &blinkModes[mode];
   blinkMaskIndex1 = blinkMode->blinkStart1;
   blinkMaskIndex2 = blinkMode->blinkStart2;
   interrupts();
 }
 
-void toggleBlinkEnabled(uint8_t port, uint8_t mask) {
+void toggleBlinkEnabledFromISR(uint8_t port, uint8_t mask) {
+  while (xSemaphoreTakeFromISR(settingsMutex, portMAX_DELAY) != pdTRUE) continue;
+
   if (blinkEnabled[port] & mask) {
     blinkEnabled[port] &= ~mask;
   } else {
     blinkEnabled[port] |= mask;
   }
+
+  settings.blinkEnabled[port] = blinkEnabled[port];
+
+  xSemaphoreGiveFromISR(settingsMutex, NULL);
+  notifyTasksFromISR(NOTIFY_SETTINGS_CHANGED);
 }
 
 // called from T1 ISR every 1ms

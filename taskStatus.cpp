@@ -1,37 +1,36 @@
 #include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+
+#include "config.h"
 #include "taskStatus.h"
+#include "taskManager.h"
 
-QueueHandle_t statusQueue;
-
-void setStatusFromISR(boardStatus status) {
-  boardStatus stat = status;
-  xQueueSendFromISR(statusQueue, &status, 0);
-}
-
-void setStatus(boardStatus status) {
-  boardStatus stat = status;
-  xQueueSend(statusQueue, &status, 0);
-}
+enum boardStatus status;
+uint32_t notificationStatus;
 
 void TaskStatus(void *pvParameters) {
   (void) pvParameters;
-    enum boardStatus stat, status;
-    uint8_t i;
-    statusQueue = xQueueCreate(5, sizeof(int8_t));
 
+  uint8_t i;
   pinMode(LED_BUILTIN, OUTPUT);
+  status = STATUS_INIT;
 
-  while (true) {
-    if (xQueueReceive(statusQueue, &stat, portTICK_PERIOD_MS) == pdPASS) {
-        status = stat;
+  while (1) {
+    notificationStatus = ulTaskNotifyTake(pdTRUE, portTICK_PERIOD_MS);
+    if (notificationStatus & NOTIFY_IP_READY) {
+      status = STATUS_DHCP_CONNECTED;
+    }
+    if (notificationStatus & NOTIFY_MQTT_CONNECTED) {
+      status = STATUS_MQTT_CONNECTED;
     }
 
+    // blink status led
     i = 0;
     while (++i <= status) {
-        digitalWrite(LED_BUILTIN, HIGH);
-        vTaskDelay( 60 / portTICK_PERIOD_MS );
-        digitalWrite(LED_BUILTIN, LOW);
-        vTaskDelay( 200 / portTICK_PERIOD_MS );
+      digitalWrite(LED_BUILTIN, HIGH);
+      vTaskDelay( 60 / portTICK_PERIOD_MS );
+      digitalWrite(LED_BUILTIN, LOW);
+      vTaskDelay( 200 / portTICK_PERIOD_MS );
     }
     vTaskDelay( 500 / portTICK_PERIOD_MS );
   }

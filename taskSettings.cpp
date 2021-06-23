@@ -6,9 +6,10 @@
 
 #include "config.h"
 #include "taskSettings.h"
+#include "taskManager.h"
 
 SemaphoreHandle_t settingsMutex;
-SemaphoreHandle_t settingsSetSemaphore;
+uint32_t notificationSettings;
 
 Settings settings;
 
@@ -29,35 +30,47 @@ void setDefaultSettings() {
     settings.lightPin[i] = i;
     i++;
   }
+
+  i = 0;
+  while (i < BUTTONS / 8) { // set all buttons blinking
+    settings.blinkEnabled[i] = 255;
+    i++;
+  }
+}
+
+void loadSettings() {
+  EEPROM.get(EEPROM_START, settings);
+
+  // invalid settings, write defaults
+  if (calcCRC((uint8_t *)&settings + 2, sizeof(Settings) - 2) != settings.crc) {
+    DEBUG_PRINTLN("Invalid settings");
+    setDefaultSettings();
+    settings.crc = calcCRC((uint8_t *)&settings + 2, sizeof(Settings) - 2);
+    EEPROM.put(EEPROM_START, settings);
+  }
+}
+
+void saveSettings() {
+  settings.crc = calcCRC((uint8_t *)&settings + 2, sizeof(Settings) - 2);
+  EEPROM.put(EEPROM_START, settings);
 }
 
 void TaskSettings(void *pvParameters) {
   (void) pvParameters;
 
   settingsMutex = xSemaphoreCreateMutex();
-  settingsSetSemaphore = xSemaphoreCreateBinary();
 
   xSemaphoreTake(settingsMutex, portMAX_DELAY);
-  EEPROM.get(EEPROM_START, settings);
-
-  // invalid settings, write defaults
-  if (calcCRC((uint8_t *)&settings + 2, sizeof(Settings) - 2) != settings.crc) {
-#ifdef DEBUG
-    Serial.println("Invalid settings");
-#endif
-    setDefaultSettings();
-    settings.crc = calcCRC((uint8_t *)&settings + 2, sizeof(Settings) - 2);
-    EEPROM.put(EEPROM_START, settings);
-  }
-
+  loadSettings();
   xSemaphoreGive(settingsMutex);
+  notifyTasks(NOTIFY_SETTINGS_READY);
 
   while (1) {
-    xSemaphoreTake(settingsSetSemaphore, portMAX_DELAY); // settings changed
-
-    xSemaphoreTake(settingsMutex, portMAX_DELAY);
-    settings.crc = calcCRC((uint8_t *)&settings + 2, sizeof(Settings) - 2);
-    EEPROM.put(EEPROM_START, settings);
-    xSemaphoreGive(settingsMutex);
+    notificationSettings = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (notificationSettings & NOTIFY_SETTINGS_CHANGED) {
+      xSemaphoreTake(settingsMutex, portMAX_DELAY);
+      saveSettings();
+      xSemaphoreGive(settingsMutex);
+    }
   }
 }

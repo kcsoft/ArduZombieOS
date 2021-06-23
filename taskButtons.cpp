@@ -50,7 +50,7 @@ void TaskButtons() {
               if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE_LONG) { // button long press
                 // if turn off, toggle blink
                 if (lightState[readButtonsButtonIndex] == LOW) {
-                  toggleBlinkEnabled(readButtonsPortIndex, readButtonsMask);
+                  toggleBlinkEnabledFromISR(readButtonsPortIndex, readButtonsMask);
                 }
               }
             }
