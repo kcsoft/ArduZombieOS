@@ -11,3 +11,6 @@
 
 Includes FreeRTOS port for Arduino [https://github.com/feilipu/Arduino_FreeRTOS_Library]
 
+### Requires
+- Arduino AVR Boards version 1.8.6
+- FreeRTOS version 10.3.0-9
