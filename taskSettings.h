@@ -1,6 +1,7 @@
 #ifndef _TASK_SETTINGS_H
 #define _TASK_SETTINGS_H
 
+#include <Arduino_FreeRTOS.h>
 #include <semphr.h>
 #include "config.h"
 
@@ -12,6 +13,7 @@ struct Settings {
     char id;
     char hostname[20];
     unsigned char lightPin[LIGHTS];
+    uint8_t blinkEnabled[BUTTONS/8];
 };
 
 extern Settings settings;

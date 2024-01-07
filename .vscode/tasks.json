@@ -1,0 +1,27 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "arduino-cli compile -b arduino:avr:mega --output-dir ./bin ArduZombieOS.ino",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Upload",
+      "type": "shell",
+      "command": "arduino-cli upload -b arduino:avr:mega -p /dev/tty.usbmodem101 --input-dir ./bin ArduZombieOS.ino",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    }
+  ]
+}

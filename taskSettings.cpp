@@ -29,6 +29,11 @@ void setDefaultSettings() {
     settings.lightPin[i] = i;
     i++;
   }
+  i = 0;
+  while (i < BUTTONS/8) { // set blinkEnabled to 0,1,2..
+    settings.blinkEnabled[i] = 255;
+    i++;
+  }
 }
 
 void TaskSettings(void *pvParameters) {
