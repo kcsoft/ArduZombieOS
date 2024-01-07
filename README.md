@@ -14,7 +14,7 @@ Uses [FreeRTOS](https://github.com/feilipu/Arduino_FreeRTOS_Library) port for Ar
 ### Requirements
 - Arduino MEGA 2560 board with W5100 ethernet shield
 - Arduino AVR Boards version 1.8.6
-- FreeRTOS version 10.3.0-9
+- FreeRTOS version 11.0.1
 
 ### Operation mode
 

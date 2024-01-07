@@ -1,26 +1,16 @@
 #include <Arduino_FreeRTOS.h>
 
-#include "taskStatus.h"
-#include "taskLights.h"
+#include "config.h"
+#include "taskManager.h"
 #include "taskSettings.h"
-#include "taskDHCP.h"
-#include "taskMQTT.h"
 #include "taskButtons.h"
 #include "taskBlink.h"
 
-
 void setup() {
-#ifdef DEBUG
-  Serial.begin(115200);
-#endif
-  xTaskCreate(TaskStatus, "Status", 128, NULL, 0, NULL);
-  xTaskCreate(TaskSettings, "Settings", 256, NULL, 0, NULL);
-  xTaskCreate(TaskDHCP, "DHCP", 256, NULL, 0, NULL);
-  xTaskCreate(TaskMQTT, "MQTT", 256, NULL, 0, NULL);
-  xTaskCreate(TaskLights, "Lights", 256, NULL, 0, NULL);
-  // vTaskStartScheduler();
+  loadSettings();
+  setBlinkMode(4);
 
-  setStatus(status_start);
+  createTasks();
 
   noInterrupts();
   TCCR1A = 0;
@@ -29,8 +19,6 @@ void setup() {
   TCCR1B |= (1 << WGM12); // CTC mode
   TCCR1B |= (1 << CS11); // 8 prescaler
   TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
-  setBlinkMode(4);
-
   interrupts();
 }
 

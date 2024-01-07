@@ -1,16 +1,16 @@
-#include <Arduino_FreeRTOS.h>
 #include <string.h>
+#include <Arduino_FreeRTOS.h>
 
 #include "config.h"
 #include "taskMQTT.h"
-#include "taskDHCP.h"
+#include "taskManager.h"
 #include "taskSettings.h"
 #include "taskLights.h"
 #include "taskBlink.h"
-#include "taskStatus.h"
 #include "fast_atoi.h"
 
 QueueHandle_t mqttQueue;
+uint32_t notificationMqtt;
 
 // subscribe
 char mqttLightTopic[] = "house/\0/light/\0\0\0";
@@ -25,7 +25,7 @@ char mqttLightStateTopic[] = "house/\0/light/state/\0\0\0";
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
 EthernetClient client;
-PubSubClient mqttClient(MQTT_HOST, 1883, mqttCallback, client);
+PubSubClient mqttClient((char *)MQTT_HOST, 1883, mqttCallback, client);
 
 uint8_t setupTopicForLight(char *topic, uint8_t idPosition, uint8_t light) {
   uint8_t len = idPosition > 0 ? idPosition : strlen(topic);
@@ -46,13 +46,11 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
   uint16_t mqttStateTopicVal;
 
   mqttQueue = xQueueCreate(LIGHTS, sizeof(int8_t));
+  DEBUG_PRINTLN("MQTT: Wait DHCP");
 
-#ifdef DEBUG
-  Serial.println("MQTT: Wait DHCP");
-#endif
-
-  if (xSemaphoreTake(ipSemaphore, portMAX_DELAY) != pdPASS) {
-    vTaskSuspend(NULL);
+  notificationMqtt = 0;
+  while ((notificationMqtt & NOTIFY_IP_READY) != NOTIFY_IP_READY) {
+    notificationMqtt = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
 
   // prepare topics, replace ID
@@ -64,19 +62,15 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
   mqttLightStateTopic[idPosition] = settings.id;
   mqttResetTopic[idPosition] = settings.id;
 
-#ifdef DEBUG
-  Serial.println(mqttLightTopic);
-  Serial.println("MQTT: Can connect now!!");
-#endif
+  DEBUG_PRINTLN(mqttLightTopic);
+  DEBUG_PRINTLN("MQTT: Can connect now!!");
 
   while (1) {
     if (!mqttClient.connected()) {
-      setStatus(status_dhcp_connected);
       if (mqttClient.connect(settings.hostname)) {
-        setStatus(status_mqtt_connected);
-#ifdef DEBUG
-        Serial.println("MQTT: Connected");
-#endif
+        notifyTasks(NOTIFY_MQTT_CONNECTED);
+        DEBUG_PRINTLN("MQTT: Connected");
+
         // subscribe to lights
         idPosition = 0;
         i = 0;
@@ -119,11 +113,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   uint8_t myTopicLen, channel;
   uint8_t topicLen = strlen(topic);
 
-#ifdef DEBUG
-  Serial.print(topic);
-  Serial.print(" : ");
-  Serial.println((char *)payload);
-#endif
+  DEBUG_PRINT(topic);
+  DEBUG_PRINT(" : ");
+  DEBUG_PRINTLN((char *)payload);
 
   // mqttLightTopic
   myTopicLen = strlen(mqttLightTopic);
@@ -199,17 +191,20 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       setDefaultSettings();
     }
     xSemaphoreGive(settingsMutex);
-    xSemaphoreGive(settingsSetSemaphore);
+    notifyTasks(NOTIFY_SETTINGS_CHANGED);
 
     return;
   }
 
   // reset using watchdog
   if (strcmp(mqttResetTopic, topic) == 0) {
-    wdt_interrupt_reset_enable(portUSE_WDTO);
-    wdt_disable();
-    wdt_enable(WDTO_2S);
+    // wdt_interrupt_reset_enable(portUSE_WDTO); // was removed from arduinofreertos
+    // watchdog resets the board
+    cli();
+    wdt_reset();
+    MCUSR = 0;
+    WDTCSR = (1 << WDCE) | (1 << WDE);
+    WDTCSR = (1 << WDE) | ( 1 << WDP2);
     while (1) continue;
   }
 }
-

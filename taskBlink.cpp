@@ -2,8 +2,9 @@
 #include <Arduino_FreeRTOS.h>
 
 #include "config.h"
-#include "taskSettings.h"
 #include "taskBlink.h"
+#include "taskSettings.h"
+#include "taskManager.h"
 
 #define BLINK_MASKS_SIZE	12
 
@@ -19,6 +20,7 @@ uint8_t blinkMaskIndex1 = 0;
 uint8_t blinkMaskIndex2 = 6;
 uint8_t blinkMask1 = 0;
 uint8_t blinkMask2 = 0;
+uint8_t blinkEnabled[BUTTONS/8] = {255, 255}; // asume 2 bytes
 
 struct BlinkMode {
   uint8_t blinkMasks[BLINK_MASKS_SIZE];
@@ -63,33 +65,44 @@ BlinkMode blinkModes[] = {
 BlinkMode *blinkMode;
 
 void setBlinkMode(uint8_t mode) {
+  uint8_t i;
+
   if (mode >= (sizeof(blinkModes) / sizeof(blinkModes[0]))) {
     return;
   }
   noInterrupts();
+  // init
+  i = 0;
+  while (i < BUTTONS / 8) {
+    blinkEnabled[i] = settings.blinkEnabled[i];
+    i++;
+  }
+
   blinkMode = &blinkModes[mode];
   blinkMaskIndex1 = blinkMode->blinkStart1;
   blinkMaskIndex2 = blinkMode->blinkStart2;
   interrupts();
 }
 
-void toggleBlinkEnabled(uint8_t port, uint8_t mask) {
-  xSemaphoreTake(settingsMutex, portMAX_DELAY);
+void toggleBlinkEnabledFromISR(uint8_t port, uint8_t mask) {
+  while (xSemaphoreTakeFromISR(settingsMutex, portMAX_DELAY) != pdTRUE) continue;
 
-  if (settings.blinkEnabled[port] & mask) {
-    settings.blinkEnabled[port] &= ~mask;
+  if (blinkEnabled[port] & mask) {
+    blinkEnabled[port] &= ~mask;
   } else {
-    settings.blinkEnabled[port] |= mask;
+    blinkEnabled[port] |= mask;
   }
 
-  xSemaphoreGive(settingsMutex);
-  xSemaphoreGive(settingsSetSemaphore);
+  settings.blinkEnabled[port] = blinkEnabled[port];
+
+  xSemaphoreGiveFromISR(settingsMutex, NULL);
+  notifyTasksFromISR(NOTIFY_SETTINGS_CHANGED);
 }
 
 // called from T1 ISR every 1ms
 void TaskBlink() {
-  DDRA = blinkValue & settings.blinkEnabled[0];
-  DDRC = blinkValue & settings.blinkEnabled[1];
+  DDRA = blinkValue & blinkEnabled[0];
+  DDRC = blinkValue & blinkEnabled[1];
 
   // compute the value for button blink !! max 4 outputs on per port
   if (blinkBitMask == 0) {
