@@ -10,7 +10,7 @@ uint8_t buttonState[BUTTONS / 8]; // the inputs PINA, PINC
 uint16_t buttonDebounce[BUTTONS];
 
 uint8_t timer1CountReadButtons;
-uint8_t readButtonsPortIndex, readButtonsButtonIndex, readButtonsMask;
+uint8_t readButtonsPortIndex, readButtonsButtonIndex, readButtonsMask, readButtonsBit;
 uint8_t action, param;
 
 // called from T1 ISR every 1ms
@@ -32,8 +32,9 @@ void TaskButtons() {
     } else { // timer1CountReadButtons > 5, process inputs
       timer1CountReadButtons = 0;
       while (readButtonsPortIndex < (BUTTONS / 8)) {
-        readButtonsMask = 128;
-        while (readButtonsMask) {
+        readButtonsMask = 1;
+        readButtonsBit = 0;
+        while (readButtonsBit < 8) {
           if ((buttonState[readButtonsPortIndex] & readButtonsMask) == LOW) { // button pressed
             if (buttonDebounce[readButtonsButtonIndex] < DEBOUNCE) {
               if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE) { // button push event
@@ -63,7 +64,8 @@ void TaskButtons() {
             buttonDebounce[readButtonsButtonIndex] = 0;
           }
           readButtonsButtonIndex++;
-          readButtonsMask >>= 1;
+          readButtonsMask <<= 1;
+          readButtonsBit++;
         }
         readButtonsPortIndex++;
       }

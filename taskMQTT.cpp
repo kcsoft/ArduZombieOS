@@ -22,7 +22,7 @@ char mqttResetTopic[] = "house/\0/reset\0";
 char mqttStartTopic[] = "house/\0/start\0";
 char mqttLightStateTopic[] = "house/\0/light/state/\0\0\0";
 char mqttButtonTopic[] = "house/\0/button/\0\0\0";
-char mqttSendSettingTopic[] = "house/\0/settings/\0";
+char mqttSendSettingTopic[] = "house/\0/settings\0";
 
 mqttQueueData queueData;
 // global, used in sendToMQTTQueue

@@ -9,7 +9,7 @@
 // for settings
 #define EEPROM_START        100
 
-#define MQTT_HOST           "192.168.1.1"
+#define MQTT_HOST           "192.168.1.2"
 
 #define BUTTONS			        16
 #define LIGHTS              BUTTONS
