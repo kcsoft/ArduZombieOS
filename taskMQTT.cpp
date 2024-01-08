@@ -20,7 +20,9 @@ char mqttSettingTopic[] = "house/\0/set\0";
 char mqttResetTopic[] = "house/\0/reset\0";
 // publish
 char mqttLightStateTopic[] = "house/\0/light/state/\0\0\0";
+char mqttButtonTopic[] = "house/\0/button/\0\0\0";
 
+mqttQueueData queueData;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
@@ -45,7 +47,7 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
   uint8_t i;
   uint16_t mqttStateTopicVal;
 
-  mqttQueue = xQueueCreate(LIGHTS, sizeof(int8_t));
+  mqttQueue = xQueueCreate(LIGHTS, sizeof(mqttQueueData));
   DEBUG_PRINTLN("MQTT: Wait DHCP");
 
   notificationMqtt = 0;
@@ -61,6 +63,7 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
   mqttSettingTopic[idPosition] = settings.id;
   mqttLightStateTopic[idPosition] = settings.id;
   mqttResetTopic[idPosition] = settings.id;
+  mqttButtonTopic[idPosition] = settings.id;
 
   DEBUG_PRINTLN(mqttLightTopic);
   DEBUG_PRINTLN("MQTT: Can connect now!!");
@@ -96,13 +99,20 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
       mqttClient.loop(); // maybe faster??
     }
     // check for mqtt publish requests
-    // bit 7=state, bit0-4 light
-    if (xQueueReceive(mqttQueue, &i, portTICK_PERIOD_MS) == pdPASS) {
+    if (xQueueReceive(mqttQueue, &queueData, 0) == pdPASS) {
       if (mqttClient.connected()) {
-        idPosition = setupTopicForLight(mqttLightStateTopic, 0, (i & 0x1F) + 1);
-        mqttStateTopicVal = (i & 128) ? '1' : '0'; // uint16 has 0 second byte
-        mqttClient.publish(mqttLightStateTopic, (char *)(&mqttStateTopicVal));
-        mqttLightStateTopic[idPosition] = 0;
+        if (queueData.type == MQTT_LIGHT_STATE) {
+          idPosition = setupTopicForLight(mqttLightStateTopic, 0, queueData.light + 1);
+          mqttStateTopicVal = queueData.state ? '1' : '0'; // uint16 has 0 second byte
+          mqttClient.publish(mqttLightStateTopic, (char *)(&mqttStateTopicVal));
+          mqttLightStateTopic[idPosition] = 0;
+        } else
+        if (queueData.type == MQTT_BUTTON_VERY_LONG) {
+          idPosition = setupTopicForLight(mqttButtonTopic, 0, queueData.light + 1);
+          mqttStateTopicVal = queueData.state ? '1' : '0'; // uint16 has 0 second byte
+          mqttClient.publish(mqttButtonTopic, (char *)(&mqttStateTopicVal));
+          mqttButtonTopic[idPosition] = 0;
+        }
       }
     }
     // vTaskDelay(portTICK_PERIOD_MS);
@@ -112,6 +122,7 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   uint8_t myTopicLen, channel;
   uint8_t topicLen = strlen(topic);
+  mqttQueueData localQueueData;
 
   DEBUG_PRINT(topic);
   DEBUG_PRINT(" : ");
@@ -152,8 +163,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     channel = 0;
     while (channel < LIGHTS) {
       if (lightState[channel] == HIGH) {
-        myTopicLen = channel | 128;
-        xQueueSend(mqttQueue, &myTopicLen, 0);
+        localQueueData.type = MQTT_LIGHT_STATE;
+        localQueueData.light = channel;
+        localQueueData.state = 1;
+        xQueueSend(mqttQueue, &localQueueData, 0);
       }
       channel++;
     }

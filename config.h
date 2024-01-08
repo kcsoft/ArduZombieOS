@@ -14,7 +14,10 @@
 #define BUTTONS			        16
 #define LIGHTS              BUTTONS
 #define DEBOUNCE		        3
+// 1.5 seconds
 #define DEBOUNCE_LONG	      255
+// 6 seconds
+#define DEBOUNCE_VERY_LONG  1000
 
 
 #ifdef DEBUG

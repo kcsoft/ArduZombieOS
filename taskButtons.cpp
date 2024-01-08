@@ -9,11 +9,13 @@
 #include "taskMQTT.h"
 
 uint8_t buttonState[BUTTONS / 8]; // the inputs PINA, PINC
-uint8_t buttonDebounce[BUTTONS];
+uint16_t buttonDebounce[BUTTONS];
 
 uint8_t lightValue;
 uint8_t timer1CountReadButtons;
 uint8_t readButtonsPortIndex, readButtonsButtonIndex, readButtonsMask;
+
+mqttQueueData buttonQueueData;
 
 // called from T1 ISR every 1ms
 void TaskButtons() {
@@ -39,10 +41,12 @@ void TaskButtons() {
           if ((buttonState[readButtonsPortIndex] & readButtonsMask) == LOW) { // button pressed
             if (buttonDebounce[readButtonsButtonIndex] < DEBOUNCE) {
               if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE) { // button push event
-                // a button is pressed, add to queue
                 lightValue = toggleLight(readButtonsButtonIndex);
-                lightValue = readButtonsButtonIndex | (lightValue == HIGH ? 128 : 0);
-                xQueueSendFromISR(mqttQueue, &lightValue, 0);
+                // a button is pressed, add to queue
+                buttonQueueData.type = MQTT_LIGHT_STATE;
+                buttonQueueData.light = readButtonsButtonIndex;
+                buttonQueueData.state = lightValue == HIGH ? 1 : 0;
+                xQueueSendFromISR(mqttQueue, &buttonQueueData, 0);
               }
             } else
             // check if long press
@@ -52,6 +56,17 @@ void TaskButtons() {
                 if (lightState[readButtonsButtonIndex] == LOW) {
                   toggleBlinkEnabledFromISR(readButtonsPortIndex, readButtonsMask);
                 }
+              }
+            } else
+            // check if very long press
+            if (buttonDebounce[readButtonsButtonIndex] < DEBOUNCE_VERY_LONG) {
+              if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE_VERY_LONG) { // button very long press
+                // send button number to MQTT
+                buttonQueueData.type = MQTT_BUTTON_VERY_LONG;
+                // settings.lightPin[readButtonsButtonIndex] is the light number
+                buttonQueueData.light = readButtonsButtonIndex;
+                buttonQueueData.state = 0;
+                xQueueSendFromISR(mqttQueue, &buttonQueueData, 0);
               }
             }
           } else {

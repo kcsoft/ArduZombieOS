@@ -12,6 +12,8 @@ const uint8_t lightIOPins[LIGHTS] = {
 uint8_t lightState[LIGHTS];
 uint16_t lightOnCounter[LIGHTS];
 
+mqttQueueData lightQueueData;
+
 uint8_t toggleLight(uint8_t light) {
   lightState[light] = lightState[light] == LOW ? HIGH : LOW;
   lightOnCounter[light] = 0;
@@ -45,7 +47,10 @@ void TaskLights(void *pvParameters) {
       if (lightOnCounter[light] > 0) {
         if (--lightOnCounter[light] == 0) { // turn off light
           setLight(light, 0);
-          xQueueSend(mqttQueue, &light, 0);
+          lightQueueData.type = MQTT_LIGHT_STATE;
+          lightQueueData.light = light;
+          lightQueueData.state = 0;
+          xQueueSend(mqttQueue, &lightQueueData, 0);
         }
       }
       light++;
