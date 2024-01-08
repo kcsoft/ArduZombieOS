@@ -6,7 +6,17 @@
     {
       "label": "Build",
       "type": "shell",
-      "command": "arduino-cli compile -b arduino:avr:mega --output-dir ./bin ArduZombieOS.ino",
+      "command": "arduino-cli compile --clean -b arduino:avr:mega --output-dir ./bin ArduZombieOS.ino",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Build & Upload",
+      "type": "shell",
+      "command": "arduino-cli compile --clean -b arduino:avr:mega --output-dir ./bin --upload --port /dev/tty.usbmodem101 ArduZombieOS.ino",
       "problemMatcher": [],
       "group": {
         "kind": "build",

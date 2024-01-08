@@ -18,19 +18,51 @@ Uses [FreeRTOS](https://github.com/feilipu/Arduino_FreeRTOS_Library) port for Ar
 
 ### Operation mode
 
-#### On button short press:
-  - toggle output
-  - send mqtt message `house/:id/light/state/:output` with payload `0` or `1`
+#### Startup
+- when connecing to MQTT server, send mqtt message `house/:id/start` with payload `1` (online)
+
+#### Outputs
+- can be set/toggled by mqtt message on `house/:id/light/:output` with payload `0`, `1` or number of seconds to keep output on
+- can be set/toggled by button press (actions)
+- on change, send mqtt message `house/:id/light/state/:output` with payload `0`, `1` or number of seconds to keep output on
+
+
+#### Button has 3 functions, each can have a different action:
+- short press (default action is toggle output for light X)
+- medium press - 1.5 seconds (default action is toggle blink mode for button LED)
+- long press - 6 seconds (default action is mqtt publish button number)
+
+
+#### Actions that can be assigned to button short, medium and long press
+
+Can be set by sending mqtt message `house/:id/set` with payload
+- `asXYZ` - set action short for button X (0-F), action Y (0-5), param Z (0-F)
+- `amXYZ` - set action medium for button X, action Y, param Z
+- `alXYZ` - set action long for button X, action Y, param Z
+
+eg: `as01F` - set action short for button 0 to toggle output 15 (will set output 16)
+
+##### Actions:
+
+- `0`: no action
+- `1`: toggle output for light X
+- `2`: toggle blink mode for button LED
+- `3`: mqtt publish `1` on button number topic: `house/:id/button/:button`
+- `4`: mqtt publish `2` on button number topic
+- `5`: mqtt publish `3` on button number topic
 
 ##### On MQTT message:
   - `house/:id/light/:output` with payload `0` or `1`: set output on or off. If `:output` is `0`, turn off all outputs. If payload is a number > 1, set output on for that many seconds.
   - `house/:id` send status for all outputs that are on
   - `house/:id/reset` reset the device
   - `house/:id/set` update setting, when payload
-    - `?` - reset settings to default
+    - `0` - reset settings to default
+    - `?X` - send current settings via mqtt `house/:id/settings`, X can be i = id, h = hostname, a[sml] = actions, b = blink modes
     - `iX` - set id to `X` eg: `i1`
     - `hHOSTNAME` - set hostname to `HOSTNAME` eg: `hArdu`
-    - `lXY` - associate output `X` with button `Y` eg: `l0F`, X, Y is [0-F]
+    - `asXYZ` - set action short for button X (0-F), action Y (0-5), param Z (0-F)
+    - `amXYZ` - set action medium for button X, action Y, param Z
+    - `alXYZ` - set action long for button X, action Y, param Z
     - `bX`, X=0..4 - set blink mode
 
 

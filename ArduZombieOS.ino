@@ -7,6 +7,7 @@
 #include "taskBlink.h"
 
 void setup() {
+  DEBUG_INIT();
   loadSettings();
   setBlinkMode(4);
 

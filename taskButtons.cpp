@@ -1,21 +1,17 @@
 #include <Arduino.h>
 #include <Arduino_FreeRTOS.h>
-#include <queue.h>
 
 #include "config.h"
+#include "actions.h"
 #include "taskButtons.h"
-#include "taskLights.h"
-#include "taskBlink.h"
-#include "taskMQTT.h"
+#include "taskSettings.h"
 
 uint8_t buttonState[BUTTONS / 8]; // the inputs PINA, PINC
 uint16_t buttonDebounce[BUTTONS];
 
-uint8_t lightValue;
 uint8_t timer1CountReadButtons;
 uint8_t readButtonsPortIndex, readButtonsButtonIndex, readButtonsMask;
-
-mqttQueueData buttonQueueData;
+uint8_t action, param;
 
 // called from T1 ISR every 1ms
 void TaskButtons() {
@@ -41,35 +37,29 @@ void TaskButtons() {
           if ((buttonState[readButtonsPortIndex] & readButtonsMask) == LOW) { // button pressed
             if (buttonDebounce[readButtonsButtonIndex] < DEBOUNCE) {
               if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE) { // button push event
-                lightValue = toggleLight(readButtonsButtonIndex);
-                // a button is pressed, add to queue
-                buttonQueueData.type = MQTT_LIGHT_STATE;
-                buttonQueueData.light = readButtonsButtonIndex;
-                buttonQueueData.state = lightValue == HIGH ? 1 : 0;
-                xQueueSendFromISR(mqttQueue, &buttonQueueData, 0);
+                action = settings.buttonShortActions[readButtonsButtonIndex] >> 4;
+                param = settings.buttonShortActions[readButtonsButtonIndex] & 0x0F;
+                executeAction(action, param);
               }
             } else
             // check if long press
             if (buttonDebounce[readButtonsButtonIndex] < DEBOUNCE_LONG) {
               if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE_LONG) { // button long press
-                // if turn off, toggle blink
-                if (lightState[readButtonsButtonIndex] == LOW) {
-                  toggleBlinkEnabledFromISR(readButtonsPortIndex, readButtonsMask);
-                }
-              }
-            } else
-            // check if very long press
-            if (buttonDebounce[readButtonsButtonIndex] < DEBOUNCE_VERY_LONG) {
-              if (++buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE_VERY_LONG) { // button very long press
-                // send button number to MQTT
-                buttonQueueData.type = MQTT_BUTTON_VERY_LONG;
-                // settings.lightPin[readButtonsButtonIndex] is the light number
-                buttonQueueData.light = readButtonsButtonIndex;
-                buttonQueueData.state = 0;
-                xQueueSendFromISR(mqttQueue, &buttonQueueData, 0);
+                action = settings.buttonLongActions[readButtonsButtonIndex] >> 4;
+                param = settings.buttonLongActions[readButtonsButtonIndex] & 0x0F;
+                executeAction(action, param);
               }
             }
           } else {
+            // check if medium press
+            if (
+              buttonDebounce[readButtonsButtonIndex] >= DEBOUNCE_MEDIUM
+              && buttonDebounce[readButtonsButtonIndex] < DEBOUNCE_LONG
+            ) { // button medium press
+              action = settings.buttonMediumActions[readButtonsButtonIndex] >> 4;
+              param = settings.buttonMediumActions[readButtonsButtonIndex] & 0x0F;
+              executeAction(action, param);
+            }
             buttonDebounce[readButtonsButtonIndex] = 0;
           }
           readButtonsButtonIndex++;

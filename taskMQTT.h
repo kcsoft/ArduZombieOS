@@ -8,13 +8,13 @@
 #include "src/MQTT/PubSubClient.h"
 
 enum mqttQueueType {
-  MQTT_LIGHT_STATE = 1,
-  MQTT_BUTTON_VERY_LONG,
+  MQTT_PUBLISH_LIGHT_STATE = 1, // publish a light state topic
+  MQTT_PUBLISH_BUTTON, // publish a button press topic
 };
 
 struct mqttQueueData {
-  uint8_t type;
-  uint8_t light;
+  uint8_t type; // mqttQueueType
+  uint8_t item;
   uint8_t state;
 };
 
@@ -23,5 +23,6 @@ extern PubSubClient mqttClient;
 extern EthernetClient client;
 
 void TaskMQTT(void *pvParameters);
+void sendToMQTTQueue(uint8_t type, uint8_t item, uint8_t state, uint8_t fromISR);
 
 #endif

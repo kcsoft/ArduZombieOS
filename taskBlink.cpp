@@ -84,7 +84,10 @@ void setBlinkMode(uint8_t mode) {
   interrupts();
 }
 
-void toggleBlinkEnabledFromISR(uint8_t port, uint8_t mask) {
+void toggleBlinkEnabledFromISR(uint8_t button) {
+  uint8_t port = button / 8;
+  uint8_t mask = 1 << (button % 8);
+
   while (xSemaphoreTakeFromISR(settingsMutex, portMAX_DELAY) != pdTRUE) continue;
 
   if (blinkEnabled[port] & mask) {
