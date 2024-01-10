@@ -4,10 +4,9 @@
 #include "config.h"
 
 extern uint8_t lightState[LIGHTS];
-extern uint16_t lightOnCounter[LIGHTS];
 
-uint8_t toggleLight(uint8_t light);
-void setLight(uint8_t light, uint16_t state);
+void setLight(uint8_t light, uint16_t state, uint8_t isISR);
+uint8_t toggleLight(uint8_t light, uint8_t isISR);
 
 void TaskLights(void *pvParameters);
 

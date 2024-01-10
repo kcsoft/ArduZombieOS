@@ -14,18 +14,26 @@ uint16_t lightOnCounter[LIGHTS];
 
 mqttQueueData lightQueueData;
 
-uint8_t toggleLight(uint8_t light) {
-  lightState[light] = lightState[light] == LOW ? HIGH : LOW;
-  lightOnCounter[light] = 0;
-  digitalWrite(lightIOPins[settings.lightPin[light]], lightState[light]);
+void setLight(uint8_t light, uint16_t  state, uint8_t isISR) {
+  lightState[light] = (state == 0 ? LOW : HIGH);
+  lightOnCounter[light] = (state > 1 ? state : 0);
+  digitalWrite(lightIOPins[light], lightState[light]);
+  // publish light state
+  lightQueueData.type = MQTT_PUBLISH_LIGHT_STATE;
+  lightQueueData.item = light;
+  lightQueueData.state = lightState[light];
+  if (isISR) {
+    xQueueSendFromISR(mqttQueue, &lightQueueData, 0);
+  } else {
+    xQueueSend(mqttQueue, &lightQueueData, 0);
+  }
+}
+
+uint8_t toggleLight(uint8_t light, uint8_t isISR) {
+  setLight(light, lightState[light] == LOW ? 1 : 0, isISR);
   return lightState[light];
 }
 
-void setLight(uint8_t light, uint16_t  state) {
-  lightState[light] = (state == 0 ? LOW : HIGH);
-  lightOnCounter[light] = (state > 1 ? state : 0);
-  digitalWrite(lightIOPins[settings.lightPin[light]], lightState[light]);
-}
 
 void TaskLights(void *pvParameters) {
   (void) pvParameters;
@@ -34,23 +42,20 @@ void TaskLights(void *pvParameters) {
   uint8_t light;
 
   light = 0;
-  while (light < LIGHTS) {
-    pinMode(lightIOPins[settings.lightPin[light]], OUTPUT);
-    setLight(light, LOW);
+  while (light < LIGHTS) { // set lights as output and turn off
+    pinMode(lightIOPins[light], OUTPUT);
+    digitalWrite(lightIOPins[light], LOW);
+    lightState[light] = LOW;
+    lightOnCounter[light] = 0;
     light++;
   }
 
   while (1) {
     light = 0;
-
     while (light < LIGHTS) {
       if (lightOnCounter[light] > 0) {
         if (--lightOnCounter[light] == 0) { // turn off light
-          setLight(light, 0);
-          lightQueueData.type = MQTT_LIGHT_STATE;
-          lightQueueData.light = light;
-          lightQueueData.state = 0;
-          xQueueSend(mqttQueue, &lightQueueData, 0);
+          setLight(light, 0, 0);
         }
       }
       light++;

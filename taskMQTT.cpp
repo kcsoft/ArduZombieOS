@@ -19,24 +19,28 @@ char mqttStatusTopicAsk[] = "house/\0\0";
 char mqttSettingTopic[] = "house/\0/set\0";
 char mqttResetTopic[] = "house/\0/reset\0";
 // publish
+char mqttStartTopic[] = "house/\0/start\0";
 char mqttLightStateTopic[] = "house/\0/light/state/\0\0\0";
 char mqttButtonTopic[] = "house/\0/button/\0\0\0";
+char mqttSendSettingTopic[] = "house/\0/settings\0";
 
 mqttQueueData queueData;
+// global, used in sendToMQTTQueue
+mqttQueueData queueDataSend, queueDataSendISR;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 
 EthernetClient client;
 PubSubClient mqttClient((char *)MQTT_HOST, 1883, mqttCallback, client);
 
-uint8_t setupTopicForLight(char *topic, uint8_t idPosition, uint8_t light) {
+uint8_t setupTopicForItem(char *topic, uint8_t idPosition, uint8_t item) {
   uint8_t len = idPosition > 0 ? idPosition : strlen(topic);
-  if (light >= 10) {
+  if (item >= 10) {
     topic[len] = '1';
-    topic[len + 1] = 0x30 + light - 10;
+    topic[len + 1] = 0x30 + item - 10;
     topic[len + 2] = 0;
   } else {
-    topic[len] = 0x30 + light;
+    topic[len] = 0x30 + item;
     topic[len + 1] = 0;
   }
   return len;
@@ -64,6 +68,8 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
   mqttLightStateTopic[idPosition] = settings.id;
   mqttResetTopic[idPosition] = settings.id;
   mqttButtonTopic[idPosition] = settings.id;
+  mqttStartTopic[idPosition] = settings.id;
+  mqttSendSettingTopic[idPosition] = settings.id;
 
   DEBUG_PRINTLN(mqttLightTopic);
   DEBUG_PRINTLN("MQTT: Can connect now!!");
@@ -78,7 +84,7 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
         idPosition = 0;
         i = 0;
         while (i <= LIGHTS) {
-          idPosition = setupTopicForLight(mqttLightTopic, idPosition, i);
+          idPosition = setupTopicForItem(mqttLightTopic, idPosition, i);
           mqttClient.subscribe((char *)mqttLightTopic);
           mqttLightTopic[idPosition] = 0;
           i++;
@@ -92,6 +98,9 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
 
         // add reset topic /house/1/reset
         mqttClient.subscribe((char *)mqttResetTopic);
+
+        // publish presence on mqttStartTopic
+        mqttClient.publish(mqttStartTopic, "1");
       } else {
         vTaskDelay( 1000 / portTICK_PERIOD_MS );
       }
@@ -101,15 +110,15 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
     // check for mqtt publish requests
     if (xQueueReceive(mqttQueue, &queueData, 0) == pdPASS) {
       if (mqttClient.connected()) {
-        if (queueData.type == MQTT_LIGHT_STATE) {
-          idPosition = setupTopicForLight(mqttLightStateTopic, 0, queueData.light + 1);
+        if (queueData.type == MQTT_PUBLISH_LIGHT_STATE) {
+          idPosition = setupTopicForItem(mqttLightStateTopic, 0, queueData.item + 1);
           mqttStateTopicVal = queueData.state ? '1' : '0'; // uint16 has 0 second byte
           mqttClient.publish(mqttLightStateTopic, (char *)(&mqttStateTopicVal));
           mqttLightStateTopic[idPosition] = 0;
         } else
-        if (queueData.type == MQTT_BUTTON_VERY_LONG) {
-          idPosition = setupTopicForLight(mqttButtonTopic, 0, queueData.light + 1);
-          mqttStateTopicVal = queueData.state ? '1' : '0'; // uint16 has 0 second byte
+        if (queueData.type == MQTT_PUBLISH_BUTTON) {
+          idPosition = setupTopicForItem(mqttButtonTopic, 0, queueData.item + 1);
+          mqttStateTopicVal = '0' + queueData.state; // uint16 has 0 second byte
           mqttClient.publish(mqttButtonTopic, (char *)(&mqttStateTopicVal));
           mqttButtonTopic[idPosition] = 0;
         }
@@ -121,6 +130,7 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   uint8_t myTopicLen, channel;
+  uint8_t button, action, param;
   uint8_t topicLen = strlen(topic);
   mqttQueueData localQueueData;
 
@@ -143,15 +153,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       // topic value
       myTopicLen = (length == 1 && payload[0] == '1') ? HIGH : LOW;
       while (channel < LIGHTS) {
-        setLight(channel, myTopicLen);
+        setLight(channel, myTopicLen, 0); // TODO: check relay no for all setLight calls
         channel++;
       }
     } else { // turn specific channel on/off
       channel--;
       if (length == 1 && (payload[0] == '1' || payload[0] == '0')) {
-        setLight(channel, (payload[0] == '1') ? HIGH : LOW);
+        setLight(channel, (payload[0] == '1') ? HIGH : LOW, 0);
       } else { // message is a counter > 1
-        setLight(channel, fast_atoi((char *)payload, length));
+        setLight(channel, fast_atoi((char *)payload, length), 0);
       }
     }
 
@@ -163,8 +173,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     channel = 0;
     while (channel < LIGHTS) {
       if (lightState[channel] == HIGH) {
-        localQueueData.type = MQTT_LIGHT_STATE;
-        localQueueData.light = channel;
+        localQueueData.type = MQTT_PUBLISH_LIGHT_STATE;
+        localQueueData.item = channel;
         localQueueData.state = 1;
         xQueueSend(mqttQueue, &localQueueData, 0);
       }
@@ -177,7 +187,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // mqttSettingTopic:
   // iX - set id
   // hHOSTNAME - set hostname
-  // l01 - lF1 - set lightPin
+  // asXYZ - set action short for button X (0-F), action Y (0-5), param Z (0-F)
+  // amXYZ - set action medium for button X, action Y, param Z
+  // alXYZ - set action long for button X, action Y, param Z
   // ? - reset to default settings
   // b0 .. b4 - set blink mode [no eeprom save]
   if (strcmp(mqttSettingTopic, topic) == 0) {
@@ -195,12 +207,29 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       strncpy(settings.hostname, (char *)payload + 1, length - 1);
       settings.hostname[length - 1] = 0;
     } else
-    if (payload[0] == 'l') { // set lightPin (2 hex digits)
-      settings.lightPin[
-        payload[1] > '9' ? (payload[1] - 'A' + 10) : (payload[1] - '0')
-      ] = payload[2] > '9' ? (payload[2] - 'A' + 10) : (payload[2] - '0');
+    if (payload[0] == 'a' // set button actions
+      && (payload[1] == 's' || payload[1] == 'm' || payload[1] == 'l') // short, medium or long
+      && (payload[2] >= '0' && payload[2] <= 'F') // button number
+      && (payload[3] >= '0' && payload[3] <= 'F') // action number
+      && (payload[4] >= '0' && payload[4] <= 'F') // param number
+    ) {
+      button = (payload[2] > '9' ? (payload[2] - 'A' + 10) : (payload[2] - '0')) & 0x0F;
+      action = (payload[3] > '9' ? (payload[3] - 'A' + 10) : (payload[3] - '0')) & 0x0F;
+      param = (payload[4] > '9' ? (payload[4] - 'A' + 10) : (payload[4] - '0')) & 0x0F;
+      if (payload[1] == 's') {
+        settings.buttonShortActions[button] = (action << 4) | param;
+      } else
+      if (payload[1] == 'm') {
+        settings.buttonMediumActions[button] = (action << 4) | param;
+      } else
+      if (payload[1] == 'l') {
+        settings.buttonLongActions[button] = (action << 4) | param;
+      }
     } else
-    if (payload[0] == '?') { // reset to default
+    if (payload[0] == '?') { // send settings string
+      mqttClient.publish(mqttSendSettingTopic, getSettingsString(&payload[1]));
+    } else
+    if (payload[0] == '0') { // reset to default
       setDefaultSettings();
     }
     xSemaphoreGive(settingsMutex);
@@ -209,7 +238,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-  // reset using watchdog
+  // reset using watchdog, not really working, upon reset FreeRTOS kicks in
   if (strcmp(mqttResetTopic, topic) == 0) {
     // wdt_interrupt_reset_enable(portUSE_WDTO); // was removed from arduinofreertos
     // watchdog resets the board
@@ -219,5 +248,20 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     WDTCSR = (1 << WDCE) | (1 << WDE);
     WDTCSR = (1 << WDE) | ( 1 << WDP2);
     while (1) continue;
+  }
+}
+
+
+void sendToMQTTQueue(uint8_t type, uint8_t item, uint8_t state, uint8_t fromISR) {
+  if (fromISR) {
+    queueDataSendISR.type = type;
+    queueDataSendISR.item = item;
+    queueDataSendISR.state = state;
+    xQueueSendFromISR(mqttQueue, &queueDataSendISR, 0);
+  } else {
+    queueDataSend.type = type;
+    queueDataSend.item = item;
+    queueDataSend.state = state;
+    xQueueSend(mqttQueue, &queueData, 0);
   }
 }
