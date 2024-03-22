@@ -11,6 +11,7 @@
 
 QueueHandle_t mqttQueue;
 uint32_t notificationMqtt;
+uint8_t connectedToMQTT = 0;
 
 // subscribe
 char mqttLightTopic[] = "house/\0/light/\0\0\0";
@@ -76,8 +77,13 @@ void TaskMQTT(void *pvParameters) { // MQTT Client
 
   while (1) {
     if (!mqttClient.connected()) {
+      if (connectedToMQTT == 1) { // got disconnected
+        connectedToMQTT = 0;
+        notifyTasks(NOTIFY_MQTT_DISCONNECTED);
+      }
       if (mqttClient.connect(settings.hostname)) {
         notifyTasks(NOTIFY_MQTT_CONNECTED);
+        connectedToMQTT = 1;
         DEBUG_PRINTLN("MQTT: Connected");
 
         // subscribe to lights
@@ -238,16 +244,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-  // reset using watchdog, not really working, upon reset FreeRTOS kicks in
+  // reset using watchdog
   if (strcmp(mqttResetTopic, topic) == 0) {
-    // wdt_interrupt_reset_enable(portUSE_WDTO); // was removed from arduinofreertos
-    // watchdog resets the board
-    cli();
-    wdt_reset();
-    MCUSR = 0;
-    WDTCSR = (1 << WDCE) | (1 << WDE);
-    WDTCSR = (1 << WDE) | ( 1 << WDP2);
-    while (1) continue;
+    notifyTasks(NOTIFY_RESET);
   }
 }
 

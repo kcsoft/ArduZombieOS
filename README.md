@@ -82,6 +82,22 @@ eg: `as01F` - set action short for button 0 to toggle output 15 (will set output
 
 - Arduino PINS: A8 - A15, 42 - 49
 
+### Using Timer3 as a RTOS tick timer
+
+##### FreeRTOS library changes are need, add to FreeRTOSVariant.h at LINE 66
+
+```C
+#undef portUSE_WDTO
+#undef configTICK_RATE_HZ
+#undef portTICK_PERIOD_MS
+
+#define portTICK_PERIOD_MS 15
+#define configTICK_RATE_HZ  ( (TickType_t) ( 1000 / portTICK_PERIOD_MS ) )
+#define portSCHEDULER_ISR    TIMER3_COMPA_vect
+extern void prvSetupTimerInterrupt( void );
+```
+
+
 ### Arduino MEGA 2560 Pinout
 
 ![Arduino MEGA 2560 Pinout](/assets/arduino-mega-pinout.png)

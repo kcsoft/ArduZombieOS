@@ -175,4 +175,6 @@ unsigned char *getSettingsString(unsigned char *settingField) {
     stringSettings[i] = 0;
     return stringSettings;
   }
+
+  return stringSettings;
 }
