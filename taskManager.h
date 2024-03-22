@@ -7,6 +7,8 @@ enum {
   NOTIFY_STATUS_CHANGED = 1 << 2,
   NOTIFY_IP_READY = 1 << 3,
   NOTIFY_MQTT_CONNECTED = 1 << 4,
+  NOTIFY_MQTT_DISCONNECTED = 1 << 3, // same as NOTIFY_IP_READY
+  NOTIFY_RESET = 1 << 5,
 };
 
 struct tmTask {
